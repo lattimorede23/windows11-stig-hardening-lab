@@ -1,173 +1,171 @@
-# DISA STIG Compliance Audit and Hardening Report
+# Windows 11 DISA STIG Assessment and Hardening Lab
 
-### Microsoft Windows 11 Pro — Standalone Virtual Machine
+A hands-on DISA STIG assessment of a Windows 11 Pro virtual machine: 10 controls audited manually and remediated with native Windows tools, then validated with a full SCAP Compliance Checker (SCC) scan of the 262-rule benchmark.
 
-|  |  |
-| :---- | :---- |
-| **Report Title** | Windows 11 STIG Compliance Assessment |
-| **System Assessed** | DESKTOP-CRJIC3S (VirtualBox VM) |
-| **Operating System** | Windows 11 Pro, Version 22H2, Build 22621.1848 |
-| **Auditor** | Derrick Lattimore |
-| **Framework** | DISA STIG for Microsoft Windows 11, Version 2 Release 7 (Benchmark Date: 01 Apr 2026\) |
-| **Cross-Reference** | NIST SP 800-53 |
-| **Tooling** | STIG Viewer 3.7, Local Security Policy (secpol.msc), Local Group Policy Editor, Registry Editor (regedit.exe), Computer Management (compmgmt.msc), Windows PowerShell (Administrator) |
-| **Assessment Window** | 26 June 2026 – 01 July 2026 (evidence timestamps) |
-| **Report Date** | 01 July 2026 |
-| **Classification** | Unclassified |
+**Report revision 1.1 (2026-10-14).** This revision corrects STIG rule IDs and two control determinations found in an evidence review of the original July 2026 report. The original report is preserved unchanged in [`docs/original-report-v1.0.md`](docs/original-report-v1.0.md), and every correction is listed under [Revision history](#revision-history).
 
 ---
 
-## 1\. Executive Summary
+## At a glance
 
-This report documents a manual STIG compliance assessment of a Windows 11 Pro virtual machine against 10 controls drawn from the DISA Microsoft Windows 11 STIG (V2R7). The assessment was performed using STIG Viewer 3.7 to pull authoritative check and fix text, with compliance verified directly against the host via native Windows administrative tools and the registry.
-
-Of the 10 controls audited, 3 were compliant at baseline (**Not a Finding**) and 7 were identified as **Findings**. Of those 7 findings, 6 were remediated during the assessment and verified as closed. One finding — AppLocker application control (WN11-00-000035) — could not be remediated because application allowlisting via AppLocker enforcement requires Windows 11 Enterprise or Education; the assessed system runs Windows 11 Pro, which does not support this capability. This is documented as an accepted risk / platform limitation rather than a closed finding.
-
-**Baseline compliance rate:** 3/10 (30%) **Post-remediation compliance rate:** 9/10 (90%) **Residual open findings:** 1 (CAT II, blocked by OS edition, not resolvable without an edition upgrade)
-
-The most significant control gaps at baseline were in credential and boundary protection: BitLocker pre-boot authentication was not configured, the account lockout threshold was set well above the STIG maximum, and both the built-in Administrator and Guest accounts retained their default, publicly-known names. All of these were corrected. One CAT I item — full-disk encryption itself (WN11-00-000030) — was scoped out of remediation and accepted as Not a Finding per the auditor's baseline determination; this call is flagged in Section 2.1 below because it does not cleanly satisfy the STIG's stated NA criteria and should be revisited before this report is relied upon for an accreditation decision.
-
----
-
-## 2\. Scope and Methodology
-
-The assessment covered 10 controls selected from the 262 rules published in the Windows 11 STIG (V2R7, 01 Apr 2026), spanning disk encryption, application control, account/authentication hardening, and audit logging. For each control, the auditor:
-
-1. Pulled the official check text, severity (CAT I/II/III), and fix text from STIG Viewer 3.7.  
-2. Verified the live system state using the tool specified in the check text (registry inspection via `regedit`, Local Security Policy, Local Group Policy, Computer Management, or PowerShell).  
-3. Where a gap was identified, applied the documented fix text or registry remediation and re-verified the resulting state.  
-4. Captured before/after screenshots as evidence for each control (provided separately as supporting artifacts to this report).
-
-This was a manual, single-system, point-in-time assessment. It is not a substitute for an automated SCAP scan and does not cover the remaining 252 rules in the full benchmark.
-
-### 2.1 Note on Control 1 (WN11-00-000030) Determination
-
-The auditor recorded WN11-00-000030 (BitLocker full-disk encryption) as **Not a Finding**, citing infrastructure support and "standard for VM baseline" as justification. Evidence collected during the assessment (BitLocker Drive Encryption control panel) confirms BitLocker was **off** on the C: drive at the time of review. The STIG's actual NA criteria for this control are narrow — VDI implementations where the instance is deleted or refreshed on logoff, or AVD implementations with no data at rest. A persistent, standalone VirtualBox VM with a local user profile does not meet either exclusion as written.
-
-This is flagged here rather than silently accepted: as documented, WN11-00-000030 should more accurately be recorded as an open CAT I finding with a compensating-control or risk-acceptance justification (e.g., "non-production lab VM, no sensitive data at rest, snapshot-based recovery"), not as Not a Finding. The distinction matters because CAT I findings are typically the first thing reviewed in an accreditation package, and an NA determination that doesn't match the STIG's own applicability language will not hold up under a second reviewer.
+| | |
+| :-- | :-- |
+| System | `DESKTOP-CRJIC3S`, Oracle VirtualBox VM, standalone (not domain-joined) |
+| Operating system | Windows 11 Pro 22H2, build 22621.1848 ([`system_info.png`](evidence/system_info.png)) |
+| Manual assessment | 10 controls from the DISA Microsoft Windows 11 STIG V2R7 (benchmark date 01 Apr 2026), rule text pulled from STIG Viewer 3.7 |
+| Automated validation | SCAP Compliance Checker 5.14.1, Windows 11 STIG SCAP benchmark version 002.008 (262 rules), run 2026-07-02 after remediation |
+| Assessment window | 26 Jun 2026 to 02 Jul 2026 (evidence and scan timestamps) |
+| Tools | STIG Viewer 3.7, SCC 5.14.1, Local Security Policy, Local Group Policy Editor, Registry Editor, Computer Management, PowerShell |
+| Frameworks | DISA STIG, NIST SP 800-53 Rev 5 (via CCI mappings in the STIG content) |
 
 ---
 
-## 3\. Detailed Findings
+## Results for the 10 assessed controls
 
-### Control 1 — Full Disk Encryption
+Of the 10 controls, 2 were compliant at baseline and 8 were findings. Six findings were remediated and verified. Two remain open: BitLocker full-disk encryption (CAT I) and application allowlisting (CAT II).
 
-- **STIG ID:** WN11-00-000030 | **Group ID:** V-253259 | **Severity:** CAT I  
-- **Rule Title:** Windows 11 information systems must use BitLocker to encrypt all disks to protect the confidentiality and integrity of all information at rest.  
-- **Finding:** BitLocker Drive Encryption was confirmed **off** on the C: drive via Control Panel → BitLocker Drive Encryption.  
-- **Action Taken:** None. Recorded as Not a Finding per auditor determination (see Section 2.1 for caveat on this call).  
-- **Status:** **Not a Finding** (as recorded) / flagged for review — does not fully align with STIG NA criteria.
+**Baseline: 2 of 10 compliant (20%). After remediation: 8 of 10 compliant (80%).**
 
-### Control 2 — BitLocker Pre-Boot Authentication (PIN)
+The SCAP scan on 2 July independently confirms every remediated control and both baseline-compliant controls.
 
-- **STIG ID:** WN11-00-000031 | **Group ID:** V-253260 | **Severity:** CAT I  
-- **Rule Title:** Windows 11 systems must use a BitLocker PIN for pre-boot authentication.  
-- **Finding:** Required registry values under `HKLM\SOFTWARE\Policies\Microsoft\FVE` were absent, meaning pre-boot PIN authentication was not enforced.  
-- **Action Taken:** Created/set the following REG\_DWORD values under `HKLM\SOFTWARE\Policies\Microsoft\FVE`:  
-  - `UseAdvancedStartup` \= 1  
-  - `UseTPMPIN` \= 1  
-  - `UseTPMKeyPIN` \= 1  
-- **Status:** **Remediated.** Registry verification confirms all three values present and set to `0x00000001 (1)`.
+| # | Control | STIG ID | Vuln ID | CAT | Baseline | Action taken | Final status | SCAP result (2 Jul) |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| 1 | BitLocker full-disk encryption | WN11-00-000030 | V-253259 | I | Finding (BitLocker off) | None | **Open** | Fail |
+| 2 | BitLocker pre-boot PIN | WN11-00-000031 | V-253260 | I | Finding | Set `UseAdvancedStartup`, `UseTPMPIN`, `UseTPMKeyPIN` = 1 | Remediated | Pass |
+| 3 | BitLocker minimum PIN length (6) | WN11-00-000032 | V-253261 | II | Finding | Set `MinimumPIN` = 6 | Remediated | Pass |
+| 4 | Application allowlisting | WN11-00-000035 | V-253262 | II | Finding (no policy) | None | **Open** | Not Checked (manual rule) |
+| 5 | No alternate operating systems | WN11-00-000055 | V-253266 | II | Compliant | None needed | Not a Finding | Pass |
+| 6 | Account lockout threshold (3 or less, not 0) | WN11-AC-000010 | V-253298 | II | Finding (10 attempts) | Set to 3 attempts | Remediated | Pass |
+| 7 | No anonymous SAM enumeration | WN11-SO-000145 | V-253453 | I | Compliant | None needed | Not a Finding | Pass |
+| 8 | Rename built-in Administrator | WN11-SO-000020 | V-253435 | II | Finding | Renamed to `LocalAdmin` | Remediated | Pass |
+| 9 | Audit Logon failures and successes | WN11-AU-000070, WN11-AU-000075 | V-253316, V-253317 | II | Finding (Not Configured) | Set Audit Logon to Success and Failure | Remediated | Pass, Pass |
+| 10 | Rename built-in Guest | WN11-SO-000025 | V-253436 | II | Finding | Renamed to `LocalGuest` | Remediated | Pass |
 
-### Control 3 — BitLocker Minimum PIN Length
+Control 9 is one setting (Advanced Audit Policy, Logon/Logoff > Audit Logon) that satisfies two STIG rules, so it is counted as one control.
 
-- **STIG ID:** WN11-00-000032 | **Group ID:** V-253261 | **Severity:** CAT II  
-- **Rule Title:** Windows 11 systems must use a BitLocker PIN with a minimum length of six digits for pre-boot authentication.  
-- **Finding:** `MinimumPIN` value was not present under the FVE registry path, leaving PIN length unconstrained (below the required 6-digit minimum).  
-- **Action Taken:** Created `MinimumPIN` (REG\_DWORD) under `HKLM\SOFTWARE\Policies\Microsoft\FVE`, set to `6`.  
-- **Status:** **Remediated.** Registry verification confirms `MinimumPIN = 0x00000006 (6)`.
-
-### Control 4 — Application Allowlisting (AppLocker)
-
-- **STIG ID:** WN11-00-000035 | **Group ID:** V-253262 | **Severity:** CAT II  
-- **Rule Title:** The operating system must employ a deny-all, permit-by-exception policy to allow the execution of authorized software programs.  
-- **Finding:** `Get-AppLockerPolicy -Effective -XML` run from an elevated PowerShell session returned an empty policy (`<AppLockerPolicy Version="1" />`), confirming no AppLocker rules are in effect — the system defaults to allow-all execution.  
-- **Action Taken:** **None.** AppLocker enforcement (deny-by-default rule enforcement mode) is a feature gated to Windows 11 Enterprise and Education editions. The assessed system runs Windows 11 **Pro**, which does not expose the AppLocker enforcement UI/policy engine required to satisfy this control.  
-- **Status:** **Open Finding — Not Remediated (OS edition limitation).** This is a genuine platform constraint, not an oversight, and is the kind of gap auditors are expected to document rather than paper over. Compensating controls to consider: Windows Defender Application Control (WDAC), which is available on Pro, or an edition upgrade to Enterprise if AppLocker specifically is required by policy.
-
-### Control 5 — Alternate Operating System Restriction
-
-- **STIG ID:** WN11-00-000055 | **Severity:** CAT II  
-- **Rule Title:** Alternate operating systems must not be permitted to boot with the standard Windows 11 installation.  
-- **Finding:** None. Verified via Settings → System → About → Advanced system settings → Startup and Recovery: the boot menu lists only "Windows 11" as the default operating system.  
-- **Action Taken:** None required.  
-- **Status:** **Not a Finding.**
-
-### Control 6 — Account Lockout Threshold
-
-- **STIG ID:** WN11-00-000036 | **Severity:** CAT II  
-- **Rule Title:** Account lockout threshold must be configured to meet the maximum allowed invalid logon attempts before lockout.  
-- **Finding:** Local Security Policy → Account Policies → Account Lockout Policy showed "Account lockout threshold" set to **10 invalid logon attempts**, exceeding the STIG-required maximum.  
-- **Action Taken:** Reconfigured via Local Security Policy to **3 invalid logon attempts**.  
-- **Status:** **Remediated.** Verified in Local Security Policy console post-change.
-
-### Control 7 — Anonymous SAM Enumeration Restriction
-
-- **STIG ID:** WN11-SO-000020 | **Severity:** CAT II  
-- **Rule Title:** Anonymous enumeration of SAM accounts must not be allowed (RestrictAnonymousSAM).  
-- **Finding:** None. Registry verification under `HKLM\SYSTEM\CurrentControlSet\Control\Lsa` confirmed `restrictanonymoussam` was already set to `1`.  
-- **Action Taken:** None required.  
-- **Status:** **Not a Finding.**
-
-### Control 8 — Built-in Administrator Account Name
-
-- **STIG ID:** WN11-00-000060 | **Severity:** CAT II  
-- **Rule Title:** The built-in administrator account must be renamed.  
-- **Finding:** Computer Management → Local Users and Groups → Users showed the built-in administrator account retaining its default name, "Administrator" — a known target for credential-stuffing and brute-force attacks.  
-- **Action Taken:** Renamed to `LocalAdmin` via Computer Management.  
-- **Status:** **Remediated.** Verified in Computer Management user list; account description ("Built-in account for administering...") confirms it is the same underlying built-in SID under its new name.
-
-### Control 9 — Audit Logon Events
-
-- **STIG ID:** WN11-AU-000500 | **Severity:** CAT II  
-- **Rule Title:** The system must be configured to audit Logon/Logoff → Logon events for both success and failure.  
-- **Finding:** Local Security Policy → Advanced Audit Policy Configuration → System Audit Policies → Logon/Logoff → Audit Logon was set to **Not Configured**.  
-- **Action Taken:** Set "Audit Logon" to **Success and Failure** via Advanced Audit Policy Configuration.  
-- **Status:** **Remediated.** Verified in the Advanced Audit Policy console.
-
-### Control 10 — Built-in Guest Account Name
-
-- **STIG ID:** WN11-00-000085 | **Severity:** CAT II  
-- **Rule Title:** The built-in guest account must be renamed.  
-- **Finding:** The built-in guest account retained its default name, "Guest," in Computer Management → Local Users and Groups. (Note: the account was already disabled, which satisfies a separate, related control, but the naming requirement is independent.)  
-- **Action Taken:** Renamed to `LocalGuest` via Computer Management.  
-- **Status:** **Remediated.** Verified in Computer Management user list; account description ("Built-in account for guest access...") confirms it is the same built-in account under its new name.
+Controls 2 and 3 set the BitLocker policy values the STIG checks for, and SCAP passes them. Those values only take effect once BitLocker is turned on, so while control 1 is open they are configured but not in force.
 
 ---
 
-## 4\. Compliance Summary Table
+## Full-benchmark SCAP scan
 
-| \# | STIG ID | Severity | Rule Title | Baseline Status | Action Taken | Final Status |
-| :---- | :---- | :---- | :---- | :---- | :---- | :---- |
-| 1 | WN11-00-000030 | CAT I | Full disk encryption via BitLocker | Non-compliant (BitLocker off) | None | Not a Finding *(see 2.1 caveat)* |
-| 2 | WN11-00-000031 | CAT I | BitLocker PIN for pre-boot authentication | Finding | Set `UseAdvancedStartup`, `UseTPMPIN`, `UseTPMKeyPIN` \= 1 | Remediated |
-| 3 | WN11-00-000032 | CAT II | Minimum 6-digit BitLocker PIN | Finding | Set `MinimumPIN` \= 6 | Remediated |
-| 4 | WN11-00-000035 | CAT II | Deny-all, permit-by-exception (AppLocker) | Finding | None — requires Enterprise/Education edition | Open (edition limitation) |
-| 5 | WN11-00-000055 | CAT II | Alternate OS boot restriction | Compliant | None required | Not a Finding |
-| 6 | WN11-00-000036 | CAT II | Account lockout threshold ≤ policy max | Finding (10 attempts) | Reconfigured to 3 attempts | Remediated |
-| 7 | WN11-SO-000020 | CAT II | RestrictAnonymousSAM | Compliant | None required | Not a Finding |
-| 8 | WN11-00-000060 | CAT II | Rename built-in Administrator account | Finding | Renamed to `LocalAdmin` | Remediated |
-| 9 | WN11-AU-000500 | CAT II | Audit Logon success/failure | Finding | Set to Success and Failure | Remediated |
-| 10 | WN11-00-000085 | CAT II | Rename built-in Guest account | Finding | Renamed to `LocalGuest` | Remediated |
+After the manual work, the full benchmark was scanned with SCC 5.14.1 on 2 July 2026. The reports are in [`scap-results/`](scap-results/) and summarized in [`scap-results/README.md`](scap-results/README.md).
 
-**Summary:** 10 controls audited · 3 compliant at baseline · 7 findings identified · 6 remediated · 1 open (platform-limited) · 1 baseline determination flagged for reviewer follow-up.
+| Severity | Pass | Fail | Not Applicable | Not Checked |
+| :-- | --: | --: | --: | --: |
+| CAT I | 13 | 12 | 0 | 2 |
+| CAT II | 62 | 136 | 14 | 6 |
+| CAT III | 4 | 10 | 1 | 2 |
+| **Total (262 rules)** | **79** | **158** | **15** | **10** |
 
----
+**SCC score: 33.33%** (79 passed of 237 scored). SCC marks the score as provisional because 10 manual questions were left unanswered.
 
-## 5\. Residual Risk and Recommendations
+This number and the 80% above measure different things. The 80% covers only the 10 controls selected for this assessment. The 33.33% covers the entire benchmark, and most of those rules were outside this assessment's scope.
 
-**WN11-00-000035 (AppLocker, CAT II — Open):** The system cannot enforce a deny-all, permit-by-exception execution policy on Windows 11 Pro. Recommended paths, in order of preference: (1) upgrade the system to Windows 11 Enterprise or Education if AppLocker specifically is mandated; (2) implement Windows Defender Application Control (WDAC), which is available on Pro and can achieve a comparable deny-by-default posture; (3) if neither is feasible, document this as a formally accepted risk with compensating controls (e.g., restricted local admin rights, endpoint detection and response tooling) and revisit at the next accreditation cycle.
+Limitations of the scan:
 
-**WN11-00-000030 (BitLocker full-disk encryption, CAT I — Determination flagged):** As noted in Section 2.1, recording this as Not a Finding does not match the STIG's stated NA criteria for a persistent VM. Recommend either enabling BitLocker on the C: drive (low cost given TPM/PIN infrastructure is already configured per Controls 2–3) or reclassifying this as an open finding with an explicit risk acceptance memo if encryption is genuinely out of scope for this lab environment.
+- No scan was run before remediation, so there is no full-benchmark baseline and no before/after delta.
+- The scan used the `MAC-1_Classified` profile. An unclassified lab system would normally use a different profile, which can change the applicability of some rules.
+- The SCAP benchmark (version 002.008) is a different release from the V2R7 manual STIG used for the 10-control review. The STIG IDs, Vuln IDs, and severities in this report are taken from the SCAP content.
 
-**General:** This assessment covered 10 of 262 published rules in the V2R7 benchmark. A full SCAP-based scan (e.g., via the DISA-provided SCAP Compliance Checker or STIG Viewer's checklist import) is recommended before this system is treated as STIG-compliant in any formal sense.
+Related rules outside the 10-control scope also failed. For example, [`WN11-00-000036_lockout_after.png`](evidence/WN11-00-000036_lockout_after.png) shows a 10-minute lockout duration and reset counter. SCAP fails both: WN11-AC-000005 requires 15 minutes or more, and WN11-AC-000015 requires 15 minutes.
 
 ---
 
-## 6\. Conclusion
+## Control details
 
-Six of seven identified findings were remediated and verified during this assessment, moving the audited control set from 30% to 90% compliance. The one unresolved finding (AppLocker) is a documented, edition-driven platform constraint rather than a remediation failure, and is the type of real-world limitation that should be recorded rather than worked around. One baseline "Not a Finding" determination (BitLocker full-disk encryption) is flagged for reviewer attention, as it does not cleanly satisfy the STIG's own applicability language and should be resolved before this report is used to support an accreditation or ATO decision.
+### 1. BitLocker full-disk encryption (WN11-00-000030, CAT I): Open
+
+The [BitLocker control panel](evidence/WN11-00-000030_BitLocker_off.png) shows the C: drive with BitLocker off, and SCAP reports this rule as Fail. The STIG allows N/A only for VDI instances deleted or refreshed at logoff, and for AVD with no data at rest. A persistent VirtualBox VM matches neither, so this is an **open CAT I finding**.
+
+This was not remediated during the assessment. Whether the VM has a virtual TPM was not recorded, so the evidence cannot show whether BitLocker could have been enabled with TPM-based protectors. For a non-production lab VM holding no sensitive data, a reasonable disposition is formal risk acceptance with that rationale. In a production system, the remediation is to enable BitLocker on all fixed drives.
+
+### 2–3. BitLocker pre-boot PIN and PIN length (WN11-00-000031/032): Remediated
+
+The three PIN values and `MinimumPIN` = 6 were created under `HKLM\SOFTWARE\Policies\Microsoft\FVE`. The evidence and its timing:
+
+| Time | Screenshot | What it shows |
+| :-- | :-- | :-- |
+| 26 Jun, 2:15 PM | [`WN11-00-000031_registry_before.png`](evidence/WN11-00-000031_registry_before.png) | The three PIN values already set to 1, and `MinimumPIN` not yet present |
+| 26 Jun, 2:28 PM | [`WN11-00-000031_registry_remediated.png`](evidence/WN11-00-000031_registry_remediated.png) | All four values present |
+
+The 2:15 PM screenshot is therefore the after state for control 2 and the before state for control 3. No screenshot of control 2's original, unconfigured state exists. SCAP confirms both controls pass.
+
+### 4. Application allowlisting (WN11-00-000035, CAT II): Open
+
+`Get-AppLockerPolicy -Effective -XML` returned an empty policy ([screenshot](evidence/WN11-00-000035_AppLocker_empty.png)), so no allowlisting was in effect. That is correctly a finding.
+
+**Correction:** the original report said this could not be fixed on Windows 11 Pro because AppLocker enforcement is limited to Enterprise and Education. The STIG check text does describe AppLocker as built into Enterprise. However, Microsoft removed AppLocker's edition checks in [KB5024351](https://support.microsoft.com/en-us/topic/kb5024351-removal-of-windows-edition-checks-for-applocker-e3a763c9-6a3e-4d9c-8623-0ffe69046470), starting with Windows 11 22H2 build 22621.608. This VM runs build 22621.1848, so it could have enforced AppLocker rules set through local policy.
+
+The finding is open because it was not remediated within the assessment, not because of a platform limitation. Remediation options:
+
+- Deploy AppLocker deny-by-default rules, including packaged-app rules, which the STIG requires.
+- Deploy App Control for Business (WDAC), which the STIG accepts because it allows any allowlisting program.
+
+### 5. Alternate operating systems (WN11-00-000055): Not a Finding
+
+Startup and Recovery lists only Windows 11 ([screenshot](evidence/WN11-00-000055_startup_recovery.png)). SCAP: Pass.
+
+### 6. Account lockout threshold (WN11-AC-000010): Remediated
+
+The threshold was changed from 10 to 3 invalid attempts ([before](evidence/WN11-00-000036_lockout_before.png), [after](evidence/WN11-00-000036_lockout_after.png)). The STIG treats both more than 3 and exactly 0 (lockout disabled) as findings. SCAP: Pass.
+
+### 7. Anonymous SAM enumeration (WN11-SO-000145, CAT I): Not a Finding
+
+`HKLM\SYSTEM\CurrentControlSet\Control\Lsa` contains two values whose names are truncated in the [screenshot](evidence/WN11-SO-000020_RestrictAnonymousSAM.png). They are listed in alphabetical order, so the first (0) is `RestrictAnonymous` and the second (1) is `RestrictAnonymousSAM`. SCAP confirms Pass.
+
+The original report rated this rule CAT II. The STIG content rates it CAT I.
+
+### 8. Built-in Administrator renamed (WN11-SO-000020): Remediated
+
+The account was renamed from `Administrator` to `LocalAdmin` ([before](evidence/WN11-00-000060_admin_before.png), [after](evidence/WN11-00-000060_admin_after.png)). The account description confirms this is the same built-in account. SCAP: Pass.
+
+### 9. Audit Logon (WN11-AU-000070 and WN11-AU-000075): Remediated
+
+Audit Logon was set to Success and Failure ([after](evidence/WN11-AU-000500_audit_logon_after.png)). No before screenshot was captured; the original report recorded the baseline as Not Configured. SCAP passes both rules.
+
+### 10. Built-in Guest renamed (WN11-SO-000025): Remediated
+
+The account was renamed from `Guest` to `LocalGuest` ([before, in the admin screenshot](evidence/WN11-00-000060_admin_before.png), [after](evidence/WN11-00-000085_guest_renamed.png)). The Guest account was already disabled ([screenshot](evidence/WN11-00-000065_guest_disabled.png)), which separately satisfies WN11-SO-000010; SCAP passes that rule as well.
 
 ---
 
-*Evidence: Before/after screenshots for each control (STIG Viewer rule text, registry state, Local Security Policy, Advanced Audit Policy, Computer Management, PowerShell output, and BitLocker Control Panel) were captured during the assessment and are maintained as supporting artifacts to this report.*  
+## Evidence
+
+All screenshots are original and unedited. Their filenames carry the STIG IDs used in the original report, several of which were wrong. [`evidence/README.md`](evidence/README.md) maps every file to its correct rule, capture time, and contents.
+
+---
+
+## Revision history
+
+**v1.1 (2026-10-14).** Corrections from an evidence review against the SCAP content and screenshots. No new testing was performed and no evidence was changed.
+
+1. **Corrected STIG IDs for 5 controls.** The original IDs were either nonexistent or belonged to unrelated rules in the SCAP content:
+
+   | Control | Original ID | Corrected ID |
+   | :-- | :-- | :-- |
+   | Lockout threshold | WN11-00-000036 | WN11-AC-000010 |
+   | Anonymous SAM | WN11-SO-000020 | WN11-SO-000145 |
+   | Administrator rename | WN11-00-000060 | WN11-SO-000020 |
+   | Audit Logon | WN11-AU-000500 | WN11-AU-000070 / 000075 |
+   | Guest rename | WN11-00-000085 | WN11-SO-000025 |
+
+   The guest-disabled screenshot is labeled WN11-00-000065; the correct ID is WN11-SO-000010.
+2. **Corrected the severity of anonymous SAM enumeration** from CAT II to CAT I.
+3. **Reclassified WN11-00-000030 (BitLocker) from Not a Finding to Open.** The original report had already flagged this determination as inconsistent with the STIG's N/A criteria.
+4. **Corrected the WN11-00-000035 (AppLocker) rationale.** The original said the finding could not be fixed on Windows 11 Pro. Per KB5024351 it was remediable on this build, so it is now recorded as an open finding that was not remediated, rather than a platform limitation.
+5. **Corrected the compliance figures**, from 30% baseline / 90% after remediation to 20% / 80%, as a result of items 3 and 4.
+6. **Added the 2 July SCAP scan results**, which the v1.0 report predated, along with their limitations.
+7. **Corrected the description of the control 2 "before" screenshot**, which actually shows the after state.
+8. **Removed the claim that "TPM/PIN infrastructure is already configured."** The PIN policy values neither require nor demonstrate a TPM.
+
+**v1.0 (2026-07-01).** Original report: [`docs/original-report-v1.0.md`](docs/original-report-v1.0.md).
+
+---
+
+## Related work
+
+- [stig-powershell-remediation](https://github.com/lattimorede23/stig-powershell-remediation): PowerShell audit and remediation script for the same controls.
+- [nist-rmf-authorization-package](https://github.com/lattimorede23/nist-rmf-authorization-package): RMF authorization artifacts for a fictional Windows 11 workstation.
+
+**Author:** Derrick Lattimore Jr. · B.S. Information Security, Shawnee State University

@@ -1,0 +1,3 @@
+# SCC report output is generated tool output, not source code.
+# This keeps GitHub's language bar from labeling the repository as HTML.
+scap-results/*.html linguist-generated=true linguist-documentation=true
