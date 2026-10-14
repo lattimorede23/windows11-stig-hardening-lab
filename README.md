@@ -2,6 +2,9 @@
 
 ### Microsoft Windows 11 Pro — Standalone Virtual Machine
 
+> [!IMPORTANT]
+> **Evidence reconciliation (documentation update):** The historical manual assessment reported **9/10 (90%)** post-remediation compliance for its selected controls. That figure is **not** the full-benchmark SCAP result, and it includes an original **Not a Finding** determination for BitLocker (WN11-00-000030) that the evidence does not support: BitLocker was off. Treat the original 90% as a **historical reported figure, not a verified final compliance rate**. The original screenshots and scan results are retained. AppLocker applicability on this Windows 11 Pro build also requires revalidation; an OS-edition-only exemption should not be assumed.
+
 |  |  |
 | :---- | :---- |
 | **Report Title** | Windows 11 STIG Compliance Assessment |
